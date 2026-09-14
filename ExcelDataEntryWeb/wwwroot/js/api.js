@@ -225,6 +225,82 @@ class ClientWorkbookEngine {
         return this.records.filter(r => r.keyDisplay.toLowerCase().includes(q));
     }
 
+    getDataValidationOptionsForCell(sheetName, r, c) {
+        if (!this.workbook) return [];
+        const targetSheet = sheetName || this.selectedSheet;
+        const ws = this.workbook.Sheets[targetSheet];
+        if (!ws) return [];
+
+        const validations = ws['!dataValidation'] || ws['!dataValidations'] || [];
+        for (const val of validations) {
+            if (!val || !val.sqref) continue;
+            // Check if (r, c) is covered by sqref range string
+            const ranges = String(val.sqref).trim().split(/\s+/);
+            let inRange = false;
+            for (const rng of ranges) {
+                if (!rng) continue;
+                try {
+                    const dec = window.XLSX.utils.decode_range(rng);
+                    if (r >= dec.s.r && r <= dec.e.r && c >= dec.s.c && c <= dec.e.c) {
+                        inRange = true;
+                        break;
+                    }
+                } catch (_) {}
+            }
+
+            if (!inRange) continue;
+
+            // Only list validations produce dropdown options
+            if (val.type === 'list' || !val.type) {
+                let f1 = val.formula1 ? String(val.formula1).trim() : '';
+                if (!f1) continue;
+
+                // Strip quotes if formula1 is a quoted list like '"Nam,Nữ"' or '"1,2,3"'
+                if ((f1.startsWith('"') && f1.endsWith('"')) || (f1.startsWith("'") && f1.endsWith("'"))) {
+                    f1 = f1.substring(1, f1.length - 1);
+                    return f1.split(/[,;\t]/).map(s => s.trim()).filter(Boolean);
+                }
+
+                // If comma separated without quotes: "Nam,Nữ"
+                if (!f1.includes('!') && !f1.startsWith('=') && (f1.includes(',') || f1.includes(';'))) {
+                    return f1.split(/[,;\t]/).map(s => s.trim()).filter(Boolean);
+                }
+
+                // If formula reference e.g. =Sheet2!$A$1:$A$10 or Sheet2!A1:A10 or $A$1:$A$10
+                if (f1.startsWith('=')) f1 = f1.substring(1).trim();
+                let refSheet = targetSheet;
+                let rangeAddress = f1;
+                if (f1.includes('!')) {
+                    const parts = f1.split('!');
+                    refSheet = parts[0].replace(/^['"]|['"]$/g, '');
+                    rangeAddress = parts[1];
+                }
+
+                const refWs = this.workbook.Sheets[refSheet];
+                if (refWs) {
+                    try {
+                        const cleanRange = rangeAddress.replace(/\$/g, '');
+                        const dec = window.XLSX.utils.decode_range(cleanRange);
+                        const opts = [];
+                        for (let rowIdx = dec.s.r; rowIdx <= dec.e.r; rowIdx++) {
+                            for (let colIdx = dec.s.c; colIdx <= dec.e.c; colIdx++) {
+                                const targetCell = refWs[window.XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })];
+                                if (targetCell && targetCell.v !== undefined) {
+                                    const optText = String(targetCell.w !== undefined ? targetCell.w : targetCell.v).trim();
+                                    if (optText && !opts.includes(optText)) {
+                                        opts.push(optText);
+                                    }
+                                }
+                            }
+                        }
+                        if (opts.length > 0) return opts;
+                    } catch (_) {}
+                }
+            }
+        }
+        return [];
+    }
+
     getRecordFields(rowIndex) {
         if (!this.workbook || !this.selectedSheet) return [];
         const ws = this.workbook.Sheets[this.selectedSheet];
@@ -273,6 +349,11 @@ class ClientWorkbookEngine {
                 }
             }
 
+            // Check genuine Excel Data Validation for this cell
+            const validationOptions = this.getDataValidationOptionsForCell(this.selectedSheet, r, c);
+            const hasValidation = validationOptions.length > 0;
+            const suggestionOptions = !hasValidation && !this.suggestionsDisabled ? suggestions : [];
+
             fields.push({
                 headerName: headerInfo.name,
                 headerDisplayName: headerDisplayName,
@@ -290,15 +371,15 @@ class ClientWorkbookEngine {
                 sheetSeparatorTitle: '',
                 sourceRowIndex: rowIndex,
                 value: val,
-                hasDropdown: suggestions.length > 0,
-                hasLargeDropdown: suggestions.length > 10,
-                hasSmallDropdown: suggestions.length > 0 && suggestions.length <= 10,
-                showDropdownEditor: suggestions.length > 0,
+                hasDropdown: hasValidation,
+                hasLargeDropdown: hasValidation && validationOptions.length > 10,
+                hasSmallDropdown: hasValidation && validationOptions.length <= 10,
+                showDropdownEditor: hasValidation,
                 isDependentDropdown: false,
                 parentDropdownColumns: [],
-                dropdownOptions: suggestions,
-                suggestionOptions: suggestions,
-                hasSuggestions: suggestions.length > 0,
+                dropdownOptions: validationOptions,
+                suggestionOptions: suggestionOptions,
+                hasSuggestions: suggestionOptions.length > 0,
                 isDropdownValueInvalid: false,
                 dropdownValidationMessage: '',
                 rowHighlightBackgroundHex: 'Transparent',
