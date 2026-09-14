@@ -115,7 +115,7 @@ class ClientWorkbookEngine {
         if (!ws || !ws['!ref']) return;
 
         const range = window.XLSX.utils.decode_range(ws['!ref']);
-        const startRow = this.sampleRow - 1; // 0-indexed
+        const startRow = this.sampleRow > 0 ? this.sampleRow : this.headerRow; // 0-indexed (starts strictly after sample row)
         let logicalIndex = 0;
 
         for (let r = startRow; r <= range.e.r; r++) {
@@ -323,16 +323,31 @@ class ClientWorkbookEngine {
             const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
             const val = cell ? (cell.w !== undefined ? String(cell.w) : (cell.v !== undefined ? String(cell.v) : '')) : '';
 
-            // Suggestions from other rows in this column
-            const distinctVals = new Set();
-            for (let scanR = this.sampleRow - 1; scanR <= range.e.r; scanR++) {
-                const scanCell = ws[window.XLSX.utils.encode_cell({ r: scanR, c })];
-                if (scanCell && scanCell.v !== undefined) {
-                    const sVal = String(scanCell.v).trim();
-                    if (sVal && sVal.length < 100) distinctVals.add(sVal);
+            const effectiveThreshold = this.sampleRow > 0 ? this.sampleRow : (this.headerRow + 1);
+            const sampleVal = this.getEffectiveCellText(ws, effectiveThreshold - 1, c);
+
+            // Exclude texts from row 1 up to sampleRowThreshold (header rows + sample row)
+            const excludedTexts = new Set();
+            for (let rIdx = 0; rIdx < effectiveThreshold; rIdx++) {
+                const t = this.getEffectiveCellText(ws, rIdx, c);
+                if (t) excludedTexts.add(t.trim().toLowerCase());
+            }
+
+            // Suggestions from data rows strictly after sample row
+            const distinctVals = [];
+            const seen = new Set();
+            for (let scanR = effectiveThreshold; scanR <= range.e.r; scanR++) {
+                const sVal = this.getEffectiveCellText(ws, scanR, c);
+                if (sVal) {
+                    const norm = sVal.trim();
+                    const lower = norm.toLowerCase();
+                    if (!excludedTexts.has(lower) && !seen.has(lower) && norm.length < 100) {
+                        seen.add(lower);
+                        distinctVals.push(norm);
+                    }
                 }
             }
-            const suggestions = Array.from(distinctVals).slice(0, 30);
+            const suggestions = distinctVals.slice(0, 30);
 
             // Handle multi-line header text (if header explicitly contains \n from multi-tier header)
             let parentHeaderName = '';
@@ -371,6 +386,7 @@ class ClientWorkbookEngine {
                 sheetSeparatorTitle: '',
                 sourceRowIndex: rowIndex,
                 value: val,
+                sampleValue: sampleVal,
                 hasDropdown: hasValidation,
                 hasLargeDropdown: hasValidation && validationOptions.length > 10,
                 hasSmallDropdown: hasValidation && validationOptions.length <= 10,
