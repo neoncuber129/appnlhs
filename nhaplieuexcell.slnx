@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ExcelDataEntryApp/ExcelDataEntryApp.csproj" />
+  <Project Path="nhaplieuexcell/nhaplieuexcell.vcxproj" Id="84626c47-a22e-4efc-9c52-4ac179222598" />
+</Solution>

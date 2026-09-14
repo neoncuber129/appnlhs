@@ -1,0 +1,653 @@
+<Window x:Class="ExcelDataEntryApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:infra="clr-namespace:ExcelDataEntryApp.Infrastructure"
+        xmlns:local="clr-namespace:ExcelDataEntryApp"
+        mc:Ignorable="d"
+        Title="Excel Data Entry"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Height="860"
+        Width="1400"
+        MinHeight="700"
+        MinWidth="1100">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <infra:HexColorToBrushConverter x:Key="HexToBrush" />
+        <Style x:Key="SmallDropdownComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="IsEditable" Value="False" />
+            <Setter Property="IsTextSearchEnabled" Value="False" />
+            <Setter Property="StaysOpenOnEdit" Value="False" />
+            <Setter Property="local:DependentDropdownComboBoxWatcher.Enable" Value="True" />
+            <Setter Property="MaxDropDownHeight" Value="320" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel VirtualizationMode="Recycling" />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDropdownValueInvalid}" Value="True">
+                    <Setter Property="BorderBrush" Value="#DC2626" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="ToolTip" Value="{Binding DropdownValidationMessage}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LargeDropdownComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="IsTextSearchEnabled" Value="False" />
+            <Setter Property="StaysOpenOnEdit" Value="False" />
+            <Setter Property="MaxDropDownHeight" Value="320" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="local:DropdownComboBoxWatcher.Enable" Value="True" />
+            <Setter Property="local:DependentDropdownComboBoxWatcher.Enable" Value="True" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel VirtualizationMode="Recycling" />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDropdownValueInvalid}" Value="True">
+                    <Setter Property="BorderBrush" Value="#DC2626" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="ToolTip" Value="{Binding DropdownValidationMessage}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="EditableFieldOuterBorderStyle" TargetType="Border">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasRowHighlight}" Value="True">
+                    <Setter Property="Background" Value="{Binding RowHighlightBackgroundHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderBrush" Value="{Binding RowHighlightBorderHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="6" />
+                    <Setter Property="Margin" Value="0,0,0,8" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsGroupedUnderParentHeader}" Value="True" />
+                        <Condition Binding="{Binding IsFirstInHeaderGroup}" Value="True" />
+                        <Condition Binding="{Binding IsLastInHeaderGroup}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{Binding GroupBorderHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderThickness" Value="1,1,1,0" />
+                    <Setter Property="CornerRadius" Value="6,6,0,0" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsGroupedUnderParentHeader}" Value="True" />
+                        <Condition Binding="{Binding IsFirstInHeaderGroup}" Value="False" />
+                        <Condition Binding="{Binding IsLastInHeaderGroup}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{Binding GroupBorderHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderThickness" Value="1,0,1,1" />
+                    <Setter Property="CornerRadius" Value="0,0,6,6" />
+                    <Setter Property="Margin" Value="0,0,0,8" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsGroupedUnderParentHeader}" Value="True" />
+                        <Condition Binding="{Binding IsFirstInHeaderGroup}" Value="False" />
+                        <Condition Binding="{Binding IsLastInHeaderGroup}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{Binding GroupBorderHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderThickness" Value="1,0,1,0" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsGroupedUnderParentHeader}" Value="True" />
+                        <Condition Binding="{Binding IsFirstInHeaderGroup}" Value="True" />
+                        <Condition Binding="{Binding IsLastInHeaderGroup}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{Binding GroupBorderHex, Converter={StaticResource HexToBrush}}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="6" />
+                    <Setter Property="Margin" Value="0,0,0,8" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="EditableFieldRowTemplate">
+            <Border Style="{StaticResource EditableFieldOuterBorderStyle}">
+                <StackPanel>
+                    <Border Margin="-8,-6,-8,6"
+                            Padding="8,6"
+                            CornerRadius="4,4,0,0"
+                            Background="{Binding ParentTitleBackgroundHex, Converter={StaticResource HexToBrush}}"
+                            Visibility="{Binding ShowParentHeader, Converter={StaticResource BoolToVis}}">
+                        <TextBlock FontWeight="Bold"
+                                   TextWrapping="Wrap"
+                                   Foreground="{Binding ParentTitleForegroundHex, Converter={StaticResource HexToBrush}}"
+                                   Text="{Binding ParentHeaderName}" />
+                    </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Padding="6,4"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Foreground="{Binding RowHeaderForegroundHex, Converter={StaticResource HexToBrush}}"
+                                   Text="{Binding HeaderDisplayName}" />
+                        <ContentControl Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Content="{Binding}">
+                            <ContentControl.Style>
+                                <Style TargetType="ContentControl">
+                                    <Setter Property="ContentTemplate">
+                                        <Setter.Value>
+                                            <DataTemplate>
+                                                <TextBox MinHeight="28"
+                                                         local:EditableTextInputWatcher.Enable="True"
+                                                         Text="{Binding Value, UpdateSourceTrigger=LostFocus, Mode=TwoWay}" />
+                                            </DataTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasLargeDropdown}" Value="True">
+                                            <Setter Property="ContentTemplate">
+                                                <Setter.Value>
+                                                    <DataTemplate>
+                                                        <ComboBox Style="{StaticResource LargeDropdownComboBoxStyle}"
+                                                                  Background="{Binding RowInputBackgroundHex, Converter={StaticResource HexToBrush}}"
+                                                                  Foreground="{Binding RowInputForegroundHex, Converter={StaticResource HexToBrush}}"
+                                                                  ItemsSource="{Binding DisplayDropdownItems}"
+                                                                  Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                    </DataTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasSmallDropdown}" Value="True">
+                                            <Setter Property="ContentTemplate">
+                                                <Setter.Value>
+                                                    <DataTemplate>
+                                                        <ComboBox Style="{StaticResource SmallDropdownComboBoxStyle}"
+                                                                  Background="{Binding RowInputBackgroundHex, Converter={StaticResource HexToBrush}}"
+                                                                  Foreground="{Binding RowInputForegroundHex, Converter={StaticResource HexToBrush}}"
+                                                                  ItemsSource="{Binding DropdownOptions}"
+                                                                  SelectedValuePath="."
+                                                                  SelectedValue="{Binding Value, Mode=OneWay}" />
+                                                    </DataTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasSuggestions}" Value="True">
+                                            <Setter Property="ContentTemplate">
+                                                <Setter.Value>
+                                                    <DataTemplate>
+                                                        <ComboBox MinHeight="28"
+                                                                  IsEditable="True"
+                                                                  IsTextSearchEnabled="False"
+                                                                  StaysOpenOnEdit="False"
+                                                                  MaxDropDownHeight="220"
+                                                                  local:SuggestionComboBoxWatcher.Enable="True"
+                                                                  ItemsSource="{Binding SuggestionOptions}"
+                                                                  Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                    </DataTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ContentControl.Style>
+                        </ContentControl>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <Style x:Key="UploadFileButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#E5E7EB" />
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="BorderBrush" Value="#9CA3AF" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding FilePath}" Value="">
+                    <Setter Property="Background" Value="#F59E0B" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="BorderBrush" Value="#D97706" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="MultiSheetModeToggleStyle" TargetType="ToggleButton">
+            <Setter Property="MinWidth" Value="168" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="ToolTip" Value="Bấm để bật hoặc tắt chế độ nhập nhiều sheet" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Padding="12,6"
+                                CornerRadius="6"
+                                BorderThickness="1">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock x:Name="OffLabel"
+                                           FontWeight="SemiBold"
+                                           Text="Nhập nhiều sheet · Tắt" />
+                                <TextBlock x:Name="OnLabel"
+                                           FontWeight="SemiBold"
+                                           Text="Nhập nhiều sheet · Bật"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#059669" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#047857" />
+                                <Setter TargetName="OffLabel" Property="Foreground" Value="Transparent" />
+                                <Setter TargetName="OnLabel" Property="Foreground" Value="White" />
+                                <Setter TargetName="OnLabel" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="OffLabel" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#F3F4F6" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#D1D5DB" />
+                                <Setter TargetName="OffLabel" Property="Foreground" Value="#4B5563" />
+                                <Setter TargetName="OnLabel" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="OffLabel" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="#E5E7EB" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#9CA3AF" />
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="#047857" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#065F46" />
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="12">
+        <Grid.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding UiScaleFactor}" ScaleY="{Binding UiScaleFactor}" />
+        </Grid.LayoutTransform>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="10"
+                CornerRadius="6"
+                BorderThickness="1"
+                BorderBrush="#D1D5DB"
+                Background="#F8FAFC">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Text="File Excel:" />
+                <TextBox Grid.Column="1"
+                         Margin="8,0"
+                         IsReadOnly="True"
+                         Text="{Binding FilePath}" />
+                <Button Grid.Column="2"
+                        Margin="8,0,8,0"
+                        Padding="16,6"
+                        Style="{StaticResource UploadFileButtonStyle}"
+                        Command="{Binding UploadFileCommand}"
+                        Content="Upload file" />
+                <CheckBox Grid.Column="3"
+                          Margin="0,0,8,0"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding IsAutoSaveEnabled}"
+                          Content="Bật auto lưu" />
+                <Button Grid.Column="4"
+                        Margin="0,0,8,0"
+                        Padding="12,6"
+                        Background="#10B981"
+                        Foreground="White"
+                        BorderBrush="#059669"
+                        Command="{Binding SaveCommand}"
+                        Content="Lưu" />
+                <Button Grid.Column="5"
+                        Margin="0,0,8,0"
+                        Padding="12,6"
+                        Background="#2563EB"
+                        Foreground="White"
+                        BorderBrush="#1D4ED8"
+                        Command="{Binding SaveAsCommand}"
+                        Content="Save As" />
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Text="Kích thước" />
+                    <ComboBox Width="84"
+                              ItemsSource="{Binding UiScalePresets}"
+                              SelectedItem="{Binding UiScalePreset}" />
+                </StackPanel>
+                <Button Grid.Column="7"
+                        Margin="8,0,0,0"
+                        Padding="12,6"
+                        Click="OpenExportHssk_Click"
+                        Content="Cài đặt" />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="0,10,0,10">
+            <TextBlock FontWeight="SemiBold" Text="Sheet" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ComboBox ItemsSource="{Binding Sheets}"
+                          SelectedItem="{Binding SelectedSheet}"
+                          IsEnabled="{Binding IsSingleSheetToolbarEnabled}"
+                          VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <ToggleButton x:Name="MultiSheetModeToggle"
+                                  Style="{StaticResource MultiSheetModeToggleStyle}"
+                                  IsEnabled="{Binding IsWorkbookLoaded}"
+                                  Checked="MultiSheetModeToggle_Checked"
+                                  Unchecked="MultiSheetModeToggle_Unchecked" />
+                    <Button Margin="6,0,0,0"
+                            Padding="12,6"
+                            MinHeight="30"
+                            IsEnabled="{Binding IsWorkbookLoaded}"
+                            Click="OpenExportImportFile_Click"
+                            Content="Xuất file import" />
+                    <Button Margin="6,0,0,0"
+                            Padding="12,6"
+                            MinHeight="30"
+                            Click="OpenSingleSheetConfig_Click"
+                            Content="Cấu hình từng sheet"
+                            Visibility="{Binding IsSingleSheetMode, Converter={StaticResource BoolToVis}}" />
+                    <Button Margin="6,0,0,0"
+                            Padding="12,6"
+                            MinHeight="30"
+                            IsEnabled="{Binding IsWorkbookLoaded}"
+                            Click="OpenMultiSheetConfig_Click"
+                            Content="Cấu hình nhiều sheet"
+                            Visibility="{Binding IsMultiSheetMode, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Margin="0,6,0,0"
+                       FontSize="12"
+                       Foreground="#1D4ED8"
+                       Text="{Binding MultiSheetModeCaption}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding IsMultiSheetMode, Converter={StaticResource BoolToVis}}" />
+        </StackPanel>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Padding="10"
+                    CornerRadius="6"
+                    BorderThickness="1"
+                    BorderBrush="#D1D5DB">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock FontWeight="SemiBold"
+                               FontSize="14"
+                               Text="Danh sách tên (theo cột tên)" />
+                    <Grid Grid.Row="1"
+                          Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Row="0"
+                                Grid.Column="0"
+                                Margin="0,0,0,6"
+                                Padding="6,4"
+                                Content="Thêm tên mới"
+                                Command="{Binding AddRecordCommand}" />
+                        <Button Grid.Row="0"
+                                Grid.Column="2"
+                                Margin="0,0,0,6"
+                                Padding="6,4"
+                                Content="Sửa tên đã chọn"
+                                Command="{Binding EditRecordCommand}"
+                                CommandParameter="{Binding SelectedRecord}" />
+                        <Button Grid.Row="0"
+                                Grid.Column="4"
+                                Margin="0,0,0,6"
+                                Padding="6,4"
+                                Content="Xóa dòng đã chọn"
+                                Command="{Binding DeleteRecordCommand}"
+                                CommandParameter="{Binding SelectedRecord}" />
+                        <Button Grid.Row="1"
+                                Grid.Column="0"
+                                Padding="6,4"
+                                Content="Sắp xếp theo cột"
+                                Click="OpenSortRecords_Click" />
+                        <Button Grid.Row="1"
+                                Grid.Column="2"
+                                Padding="6,4"
+                                Content="Liên kết số liệu"
+                                Click="OpenLinkData_Click" />
+                        <Button Grid.Row="1"
+                                Grid.Column="4"
+                                Padding="6,4"
+                                Content="Import danh sách"
+                                Click="OpenImportListLink_Click" />
+                    </Grid>
+                    <StackPanel Grid.Row="2"
+                                Margin="0,8,0,0">
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Tìm nhanh" />
+                        <TextBox Margin="0,6,0,0"
+                                 MinHeight="34"
+                                 MaxHeight="34"
+                                 FontSize="14"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <ListBox x:Name="RecordsList"
+                             Grid.Row="3"
+                             Margin="0,8,0,0"
+                             ItemsSource="{Binding RecordsView}"
+                             SelectedItem="{Binding SelectedRecord, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewMouseLeftButtonDown="RecordsList_PreviewMouseLeftButtonDown">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="4"
+                                        Background="Transparent"
+                                        ToolTip="{Binding TooltipPreview}">
+                                    <TextBlock Text="{Binding KeyDisplay}" TextTrimming="CharacterEllipsis" />
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Padding="10"
+                    CornerRadius="6"
+                    BorderThickness="1"
+                    BorderBrush="#D1D5DB">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Text="Nhập liệu (Header | Input)" />
+                        <Button Grid.Column="1"
+                                Margin="10,0,8,0"
+                                Padding="10,4"
+                                Click="OpenHeaderSettings_Click"
+                                Content="Ẩn/hiện mục nhập liệu" />
+                        <Button Grid.Column="2"
+                                Padding="10,4"
+                                Command="{Binding ToggleAllHeadersCommand}"
+                                Content="{Binding ToggleAllHeadersLabel}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,8,0,0"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#1D4ED8"
+                               Text="{Binding CurrentRecordEntryCaption}"
+                               TextWrapping="Wrap" />
+
+                    <ScrollViewer x:Name="FieldsScrollViewer"
+                                  Grid.Row="2"
+                                  Margin="0,10,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMultiSheetMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <ItemsControl ItemsSource="{Binding EditableFields}"
+                                      ItemTemplate="{StaticResource EditableFieldRowTemplate}" />
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="MultiFieldsScrollViewer"
+                                  Grid.Row="2"
+                                  Margin="0,10,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMultiSheetMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <ItemsControl ItemsSource="{Binding EditableFields}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <Border Margin="0,14,0,8"
+                                                Padding="10,7"
+                                                CornerRadius="4"
+                                                Background="#EEF2FF"
+                                                BorderBrush="#A5B4FC"
+                                                BorderThickness="1,0,0,0"
+                                                Visibility="{Binding ShowSheetSeparator, Converter={StaticResource BoolToVis}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="4" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0"
+                                                        Background="#4F46E5"
+                                                        CornerRadius="2" />
+                                                <TextBlock Grid.Column="2"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#312E81"
+                                                           Text="{Binding SheetSeparatorTitle}" />
+                                            </Grid>
+                                        </Border>
+                                        <ContentControl Content="{Binding}"
+                                                        ContentTemplate="{StaticResource EditableFieldRowTemplate}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="3"
+                Margin="0,10,0,0"
+                Padding="8"
+                CornerRadius="4"
+                BorderThickness="1"
+                BorderBrush="#D1D5DB"
+                Background="#F8FAFC">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Source: TM" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,74 @@
+<Window x:Class="ExcelDataEntryApp.SingleSheetConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cấu hình nhập từng sheet"
+        Height="420"
+        Width="520"
+        MinHeight="380"
+        MinWidth="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock TextWrapping="Wrap"
+                   Foreground="#374151"
+                   Text="Cấu hình riêng cho chế độ nhập từng sheet. Không ảnh hưởng cấu hình nhập nhiều sheet." />
+
+        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+            <TextBlock FontWeight="SemiBold" Text="Hàng tiêu đề là hàng số:" />
+            <TextBox x:Name="HeaderRowTextBox" Margin="0,4,0,10" />
+
+            <TextBlock FontWeight="SemiBold" Text="Cột tên (mặc định 2):" />
+            <TextBox x:Name="NameColumnTextBox" Margin="0,4,0,10" />
+
+            <TextBlock FontWeight="SemiBold" Text="Dòng mẫu là dòng số:" />
+            <TextBox x:Name="SampleRowTextBox" Margin="0,4,0,10" />
+
+            <CheckBox x:Name="AutoSkipBlankCheckBox"
+                      Margin="0,4,0,6"
+                      Content="Tự bỏ qua header = blank" />
+
+            <CheckBox x:Name="SuggestionsCheckBox"
+                      Margin="0,0,0,6"
+                      Content="Bật gợi ý theo cột (có thể lag nếu dữ liệu lớn)" />
+
+            <CheckBox x:Name="AutoSaveCheckBox"
+                      Content="Tự động lưu khi sửa" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2"
+                   Margin="0,12,0,0"
+                   FontSize="11"
+                   Foreground="#6B7280"
+                   TextWrapping="Wrap"
+                   x:Name="BackupPathTextBlock" />
+
+        <StackPanel Grid.Row="3"
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="120"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="BackupNow_Click"
+                    Content="Lưu backup" />
+            <Button Width="100"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="Cancel_Click"
+                    Content="Hủy"
+                    IsCancel="True" />
+            <Button Width="100"
+                    Height="32"
+                    Click="Ok_Click"
+                    Content="OK"
+                    IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

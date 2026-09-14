@@ -1,0 +1,59 @@
+<Window x:Class="ExcelDataEntryApp.HeaderSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ẩn/hiện mục nhập liệu"
+        Height="620"
+        Width="700"
+        MinHeight="480"
+        MinWidth="520"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding HeaderColumns}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="6" Margin="0,0,0,6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="{Binding Name}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="1"
+                                        Width="80"
+                                        Height="28"
+                                        Click="ToggleHeader_Click"
+                                        Content="{Binding ToggleLabel}">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="#E5E7EB" />
+                                            <Setter Property="Foreground" Value="#111827" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                    <Setter Property="Background" Value="#FECACA" />
+                                                    <Setter Property="Foreground" Value="#7F1D1D" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="110" Height="30" Margin="0,0,8,0" Command="{Binding ToggleAllHeadersCommand}" Content="{Binding ToggleAllHeadersLabel}" />
+            <Button Width="100" Height="30" IsDefault="True" Click="Close_Click" Content="Đóng" />
+        </StackPanel>
+    </Grid>
+</Window>

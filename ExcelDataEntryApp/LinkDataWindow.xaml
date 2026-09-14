@@ -1,0 +1,348 @@
+<Window x:Class="ExcelDataEntryApp.LinkDataWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Liên kết số liệu"
+        Height="820"
+        Width="1080"
+        MinHeight="720"
+        MinWidth="1020"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock FontSize="14"
+                   FontWeight="SemiBold"
+                   Text="Liên kết số liệu từ file Excel phụ vào file đang nhập" />
+
+        <Border Grid.Row="1"
+                Margin="0,10,0,0"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="4"
+                Background="#FFFBEB">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Text="Profile xếp cặp:" />
+                <ComboBox x:Name="SavedProfileComboBox"
+                          Grid.Column="1"
+                          Margin="8,0,0,0"
+                          MinHeight="30"
+                          SelectionChanged="SavedProfileComboBox_OnSelectionChanged" />
+                <WrapPanel Grid.Column="2"
+                           Margin="8,0,0,0"
+                           HorizontalAlignment="Right">
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            Click="NewProfile_Click"
+                            Content="Tạo mới" />
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            Click="LoadProfile_Click"
+                            Content="Tải profile" />
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            Click="SaveProfile_Click"
+                            Content="Lưu profile" />
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            Click="BackupProfile_Click"
+                            Content="Backup profile" />
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            Click="RestoreProfile_Click"
+                            Content="Restore profile" />
+                    <Button Padding="10,4"
+                            Click="DeleteProfile_Click"
+                            Content="Xóa profile" />
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Margin="0,10,0,0"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="4"
+                Background="#F8FAFC">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="File số liệu:" />
+                <TextBox x:Name="DataFilePathTextBox"
+                         Grid.Column="1"
+                         Margin="8,0"
+                         IsReadOnly="True" />
+                <Button Grid.Column="2"
+                        Margin="0,0,8,0"
+                        Padding="10,4"
+                        Click="BrowseDataFile_Click"
+                        Content="Chọn file" />
+                <Button Grid.Column="3"
+                        Padding="10,4"
+                        Click="ClearDataFile_Click"
+                        Content="Xóa file" />
+                <StackPanel Grid.Row="1"
+                            Grid.ColumnSpan="4"
+                            Margin="0,10,0,0"
+                            Orientation="Horizontal">
+                    <TextBlock VerticalAlignment="Center" Text="Sheet:" />
+                    <ComboBox x:Name="DataSheetComboBox"
+                              Width="240"
+                              Margin="8,0,16,0"
+                              SelectionChanged="DataSourceSettings_Changed" />
+                    <TextBlock VerticalAlignment="Center" Text="Dòng tiêu đề:" />
+                    <TextBox x:Name="DataHeaderRowTextBox"
+                             Width="60"
+                             Margin="8,0,0,0"
+                             VerticalContentAlignment="Center"
+                             Text="1"
+                             LostFocus="DataSourceSettings_Changed" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3"
+                Margin="0,10,0,0"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="4">
+            <Grid Grid.IsSharedSizeScope="True">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" SharedSizeGroup="LinkLeftCol" MinWidth="220" />
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" SharedSizeGroup="LinkRightCol" MinWidth="220" />
+                    <ColumnDefinition Width="44" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Row="0"
+                        Grid.Column="0"
+                        Padding="10"
+                        Background="#EFF6FF"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#1D4ED8"
+                                   Text="FILE GỐC (ĐÍCH)" />
+                        <TextBlock Margin="0,4,0,8"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1E40AF"
+                                   Text="{Binding MainFileLabel}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding MainFileLabel}" />
+                        <TextBlock Margin="0,0,0,4"
+                                   Text="Cột key" />
+                        <ComboBox x:Name="MainKeyColumnComboBox"
+                                  DisplayMemberPath="LinkDisplayName"
+                                  MinHeight="34"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="1"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Foreground="#9CA3AF"
+                           Text="←" />
+
+                <Border Grid.Row="0"
+                        Grid.Column="2"
+                        Padding="10"
+                        Background="#ECFDF5"
+                        BorderBrush="#A7F3D0"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#047857"
+                                   Text="FILE SỐ LIỆU (NGUỒN)" />
+                        <TextBlock x:Name="DataFileLabelTextBlock"
+                                   Margin="0,4,0,8"
+                                   FontWeight="SemiBold"
+                                   Foreground="#065F46"
+                                   Text="Chưa chọn file"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Margin="0,0,0,4"
+                                   Text="Cột key" />
+                        <ComboBox x:Name="DataKeyColumnComboBox"
+                                  DisplayMemberPath="Name"
+                                  MinHeight="34"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="1"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="4"
+                      Margin="0,12,0,8">
+                    <TextBlock VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Text="Ánh xạ cột" />
+                    <Button HorizontalAlignment="Right"
+                            Padding="10,4"
+                            Click="AddMapping_Click"
+                            Content="+ Thêm cặp" />
+                </Grid>
+
+                <Border Grid.Row="2"
+                        Grid.Column="0"
+                        Padding="8,6"
+                        Background="#DBEAFE"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <TextBlock HorizontalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="#1E40AF"
+                               Text="Cột đích (file gốc)"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+                </Border>
+
+                <TextBlock Grid.Row="2"
+                           Grid.Column="1"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="#6B7280"
+                           Text="←" />
+
+                <Border Grid.Row="2"
+                        Grid.Column="2"
+                        Padding="8,6"
+                        Background="#D1FAE5"
+                        BorderBrush="#A7F3D0"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <TextBlock HorizontalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="#047857"
+                               Text="Cột nguồn (file số liệu)"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+                </Border>
+
+                <ListBox x:Name="MappingsListBox"
+                         Grid.Row="3"
+                         Grid.Column="0"
+                         Grid.ColumnSpan="4"
+                         Margin="0,6,0,0"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0,3" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1,0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" SharedSizeGroup="LinkLeftCol" />
+                                    <ColumnDefinition Width="44" />
+                                    <ColumnDefinition Width="*" SharedSizeGroup="LinkRightCol" />
+                                    <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding DataContext.MainHeaders, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          SelectedItem="{Binding TargetColumn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          DisplayMemberPath="LinkDisplayName"
+                                          MinHeight="34"
+                                          VerticalContentAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="#6B7280"
+                                           Text="←" />
+                                <ComboBox Grid.Column="2"
+                                          ItemsSource="{Binding DataContext.DataHeaders, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          SelectedItem="{Binding SourceColumn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          DisplayMemberPath="Name"
+                                          MinHeight="34"
+                                          VerticalContentAlignment="Center" />
+                                <Button Grid.Column="3"
+                                        Width="36"
+                                        Height="30"
+                                        HorizontalAlignment="Right"
+                                        Padding="0"
+                                        ToolTip="Xóa cặp này"
+                                        Click="RemoveMapping_Click"
+                                        Content="✕" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <TextBlock x:Name="HintTextBlock"
+                   Grid.Row="4"
+                   Margin="0,10,0,0"
+                   Foreground="#6B7280"
+                   Text="Chọn profile đã lưu trước khi chọn file số liệu. Dòng có key trùng hoặc không có số liệu khớp sẽ được bỏ qua và ghi chú; các dòng khác vẫn liên kết bình thường. Cột text trên file gốc nhận đúng chuỗi hiển thị trên file số liệu; cột số/ngày giữ định dạng theo dòng mẫu file gốc."
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="5"
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="140"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="RunLink_Click"
+                    Content="Chạy liên kết" />
+            <Button Width="160"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="ExportReport_Click"
+                    Content="Xuất báo cáo key" />
+            <Button Width="100"
+                    Height="32"
+                    IsCancel="True"
+                    Content="Đóng" />
+        </StackPanel>
+    </Grid>
+</Window>

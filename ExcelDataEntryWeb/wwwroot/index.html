@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" data-scale="medium">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Data Entry — Ứng dụng Nhập Liệu Excel</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- ─── ROW 0: TOP TOOLBAR (Giống bản Windows) ────────────────────────── -->
+    <header class="win-top-bar">
+        <div class="top-bar-left">
+            <!-- Nút Chọn file Excel -->
+            <button id="btn-browse-file" class="btn btn-choose-file" title="Chọn file Excel trên máy">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clip-rule="evenodd" /><path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2v-2z" /></svg>
+                <span>Chọn file Excel</span>
+            </button>
+            <input type="file" id="fallback-file-input" accept=".xlsx,.xlsm,.xlsb,.xls" style="display:none">
+
+            <!-- Nút Mở đường dẫn trực tiếp -->
+            <button id="btn-open-path" class="btn btn-secondary btn-sm" title="Nhập hoặc dán đường dẫn file Excel trên máy">
+                <span>Mở đường dẫn</span>
+            </button>
+
+            <!-- Nút Lưu ngay -->
+            <button id="btn-save-now" class="btn btn-save-now" title="Lưu trực tiếp vào file Excel trên máy (Ctrl+S)" disabled>
+                <span>Lưu ngay</span>
+            </button>
+
+            <!-- Nút Save As -->
+            <button id="btn-save-as" class="btn btn-save-as" title="Lưu thành file mới" disabled>
+                <span>Save As</span>
+            </button>
+
+            <!-- Tải về (Browser fallback) -->
+            <button id="btn-download-file" class="btn btn-secondary btn-sm" title="Tải bản sao file về máy" disabled>
+                <span>Tải về</span>
+            </button>
+
+            <!-- Kích thước Combobox -->
+            <div class="scale-selector-wrap">
+                <label>Kích thước</label>
+                <select id="scale-select" class="win-select">
+                    <option value="small">Nhỏ</option>
+                    <option value="medium" selected>Vừa</option>
+                    <option value="large">To</option>
+                    <option value="xlarge">Rất to</option>
+                </select>
+            </div>
+
+            <!-- Cài đặt (Xuất HSSK) -->
+            <button id="btn-settings-hssk" class="btn btn-secondary" title="Cài đặt và xuất file HSSK">
+                <span>Cài đặt</span>
+            </button>
+        </div>
+
+        <div class="top-bar-right">
+            <span id="active-filename" class="active-filename-display" title="Chưa có file nào">Chưa mở file</span>
+            <button id="btn-close-workbook" class="btn btn-secondary btn-sm" title="Đóng file hiện tại để chọn file lại từ đầu" style="display:none">Đóng file</button>
+            <button id="btn-theme-toggle" class="btn-icon" title="Chuyển chế độ Sáng / Tối"></button>
+            <span id="app-status-pill" class="status-pill">Chọn file Excel để bắt đầu.</span>
+        </div>
+    </header>
+
+    <!-- ─── ROW 1: SHEET & MULTI-SHEET BAR (Giống bản Windows) ─────────────── -->
+    <div class="win-sheet-bar">
+        <div class="sheet-bar-left">
+            <label class="sheet-label">Sheet</label>
+            <select id="sheet-dropdown" class="win-select sheet-dropdown" disabled>
+                <option value="">-- Chưa mở file --</option>
+            </select>
+        </div>
+
+        <div class="sheet-bar-right">
+            <button id="btn-toggle-multisheet" class="btn btn-toggle-multisheet" disabled>
+                <span id="multisheet-btn-label">Nhập nhiều sheet · Tắt</span>
+            </button>
+
+            <button id="btn-export-import-file" class="btn btn-secondary" disabled>
+                <span>Xuất file import</span>
+            </button>
+
+            <button id="btn-config-single-sheet" class="btn btn-secondary">
+                <span>Cấu hình từng sheet</span>
+            </button>
+
+            <button id="btn-config-multi-sheet" class="btn btn-secondary" style="display:none;">
+                <span>Cấu hình nhiều sheet</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ─── ROW 2: MAIN WORKSPACE (Chia 2 cột: 340px bên trái, Nhập liệu bên phải) ── -->
+    <div class="win-workspace">
+
+        <!-- ─── CỘT TRÁI (340px): DANH SÁCH TÊN ──────────────────────────── -->
+        <div class="win-left-panel">
+            <div class="panel-header-title">Danh sách tên (theo cột tên)</div>
+
+            <!-- 6 Action Buttons (2 hàng x 3 cột) y hệt Windows App -->
+            <div class="sidebar-action-grid">
+                <button id="btn-add-name" class="btn btn-sidebar-action">Thêm tên mới</button>
+                <button id="btn-edit-name" class="btn btn-sidebar-action">Sửa tên đã chọn</button>
+                <button id="btn-delete-name" class="btn btn-sidebar-action">Xóa dòng đã chọn</button>
+                <button id="btn-sort-columns" class="btn btn-sidebar-action">Sắp xếp theo cột</button>
+                <button id="btn-link-data" class="btn btn-sidebar-action">Liên kết số liệu</button>
+                <button id="btn-import-list" class="btn btn-sidebar-action">Import danh sách</button>
+            </div>
+
+            <!-- Tìm nhanh -->
+            <div class="search-section">
+                <label class="search-label">Tìm nhanh</label>
+                <input type="text" id="quick-search-input" class="win-input search-input" placeholder="Gõ để tìm kiếm tên...">
+            </div>
+
+            <!-- ListBox danh sách tên -->
+            <div id="records-listbox" class="win-listbox">
+                <div class="listbox-empty">Chọn file Excel để tải danh sách tên</div>
+            </div>
+        </div>
+
+        <!-- ─── CỘT PHẢI: NHẬP LIỆU (HEADER | INPUT) ───────────────────────── -->
+        <div class="win-right-panel">
+            <div class="entry-header-row">
+                <div class="entry-header-title">Nhập liệu (Header | Input)</div>
+                <div class="entry-header-actions">
+                    <button id="btn-header-settings" class="btn btn-secondary btn-sm">Ẩn/hiện mục nhập liệu</button>
+                    <button id="btn-toggle-all-headers" class="btn btn-secondary btn-sm">Hiện tất cả</button>
+                </div>
+            </div>
+
+            <!-- Dòng tiêu đề hiển thị tên người đang nhập (Màu xanh dương đậm) -->
+            <div id="current-entry-caption" class="current-entry-caption">
+                Chưa chọn dòng — chọn một tên trong danh sách bên trái.
+            </div>
+
+            <!-- Danh sách các ô nhập liệu dạng hàng (Header | Input) -->
+            <div id="fields-scroll-container" class="fields-scroll-container">
+                <div class="empty-fields-state">
+                    <p>Vui lòng mở file Excel hoặc chọn một bản ghi bên trái để bắt đầu nhập liệu.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ─── REUSABLE MODAL DIALOGS (Sửa tên, Thêm tên, Cài đặt, Sắp xếp...) ── -->
+    <div id="modal-container" class="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modal-title" class="modal-title">Tiêu đề</h3>
+                <button id="modal-close-btn" class="modal-close-btn" title="Đóng">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+            <div id="modal-footer" class="modal-footer"></div>
+        </div>
+    </div>
+
+    <!-- ─── TOAST NOTIFICATION CONTAINER ─────────────────────────────────── -->
+    <div id="toast-container"></div>
+
+    <!-- Application Script -->
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

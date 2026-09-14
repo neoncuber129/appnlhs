@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Excel Data Entry"
+      Manufacturer="VMMU"
+      Version="1.0.0"
+      UpgradeCode="8D5D0F0D-AC35-4471-BB78-611FAC1FFE28"
+      Scope="perMachine">
+
+    <MajorUpgrade
+        DowngradeErrorMessage="Đã có phiên bản mới hơn của Excel Data Entry. Gỡ phiên bản mới trước khi cài bản này." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Excel Data Entry" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramsFolder" Name="Excel Data Entry" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main" Title="Excel Data Entry" Level="1">
+      <Component Directory="INSTALLFOLDER" Guid="B2C4E6A8-1D3F-4A5B-9C7E-0F2A4B6C8D10">
+        <File Id="AppExe" Source="!(bindpath.app)\ExcelDataEntryApp.exe" KeyPath="yes">
+          <Shortcut
+              Id="StartMenuShortcut"
+              Name="Excel Data Entry"
+              Description="Ứng dụng nhập liệu Excel"
+              Directory="AppProgramsFolder"
+              WorkingDirectory="INSTALLFOLDER"
+              Advertise="yes" />
+          <Shortcut
+              Id="DesktopShortcut"
+              Name="Excel Data Entry"
+              Description="Ứng dụng nhập liệu Excel"
+              Directory="DesktopFolder"
+              WorkingDirectory="INSTALLFOLDER"
+              Advertise="yes" />
+        </File>
+        <RemoveFolder Id="RemoveAppProgramsFolder" Directory="AppProgramsFolder" On="uninstall" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>

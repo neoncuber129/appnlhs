@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: excel-data-entry-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:5000
+      - key: PORT
+        value: 5000

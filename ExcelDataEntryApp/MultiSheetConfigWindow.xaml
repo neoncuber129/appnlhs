@@ -1,0 +1,49 @@
+<Window x:Class="ExcelDataEntryApp.MultiSheetConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cấu hình nhập nhiều sheet"
+        Height="200"
+        Width="520"
+        MinHeight="180"
+        MinWidth="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock TextWrapping="Wrap"
+                   Foreground="#374151"
+                   Text="Cấu hình riêng cho chế độ nhập nhiều sheet. Không ảnh hưởng cấu hình nhập từng sheet." />
+
+        <TextBlock Grid.Row="1"
+                   Margin="0,12,0,0"
+                   FontSize="11"
+                   Foreground="#6B7280"
+                   TextWrapping="Wrap"
+                   x:Name="BackupPathTextBlock" />
+
+        <StackPanel Grid.Row="2"
+                    Margin="0,14,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="150"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="OpenImportConfig_Click"
+                    Content="Mở cấu hình sheet" />
+            <Button Width="120"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="BackupNow_Click"
+                    Content="Lưu backup" />
+            <Button Width="100"
+                    Height="32"
+                    Click="Close_Click"
+                    Content="Đóng" />
+        </StackPanel>
+    </Grid>
+</Window>

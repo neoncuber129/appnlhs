@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  excel-data-entry-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: excel-data-entry-web
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
