@@ -162,6 +162,20 @@ class ClientWorkbookEngine {
         };
     }
 
+    getEffectiveCellText(ws, r, c) {
+        if (!ws) return '';
+        if (ws['!merges']) {
+            for (const m of ws['!merges']) {
+                if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) {
+                    const anchorCell = ws[window.XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c })];
+                    return anchorCell && anchorCell.v !== undefined ? String(anchorCell.w !== undefined ? anchorCell.w : anchorCell.v).trim() : '';
+                }
+            }
+        }
+        const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
+        return cell && cell.v !== undefined ? String(cell.w !== undefined ? cell.w : cell.v).trim() : '';
+    }
+
     getHeaders() {
         if (!this.workbook || !this.selectedSheet) return [];
         const ws = this.workbook.Sheets[this.selectedSheet];
@@ -173,8 +187,8 @@ class ClientWorkbookEngine {
 
         for (let c = range.s.c; c <= range.e.c; c++) {
             const colIdx = c + 1;
-            const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
-            let name = cell && cell.v !== undefined ? String(cell.v).trim() : '';
+            let name = this.getEffectiveCellText(ws, r, c);
+            if (this.autoSkipBlank && name.toLowerCase() === 'blank') continue;
             if (!name) name = `Cột ${colIdx}`;
 
             const isVisible = !this.hiddenHeaders.has(colIdx);
@@ -221,6 +235,7 @@ class ClientWorkbookEngine {
         const headerMap = new Map(headers.map(h => [h.columnIndex, h]));
         const fields = [];
         const r = rowIndex - 1;
+        const shownParentHeaders = new Set();
 
         // Build distinct suggestions per column
         for (let c = range.s.c; c <= range.e.c; c++) {
@@ -243,20 +258,24 @@ class ClientWorkbookEngine {
             }
             const suggestions = Array.from(distinctVals).slice(0, 30);
 
-            // Check parent header
+            // Handle multi-line header text (if header explicitly contains \n from multi-tier header)
             let parentHeaderName = '';
+            let headerDisplayName = headerInfo.name;
             let showParentHeader = false;
-            if (this.headerRow > 1) {
-                const parentCell = ws[window.XLSX.utils.encode_cell({ r: this.headerRow - 2, c })];
-                if (parentCell && parentCell.v) {
-                    parentHeaderName = String(parentCell.v).trim();
-                    showParentHeader = true;
+
+            if (headerInfo.name.includes('\n')) {
+                const parts = headerInfo.name.split('\n').map(p => p.trim()).filter(Boolean);
+                if (parts.length > 1) {
+                    parentHeaderName = parts[0];
+                    headerDisplayName = parts.slice(1).join('\n');
+                    showParentHeader = !shownParentHeaders.has(parentHeaderName);
+                    shownParentHeaders.add(parentHeaderName);
                 }
             }
 
             fields.push({
                 headerName: headerInfo.name,
-                headerDisplayName: headerInfo.name,
+                headerDisplayName: headerDisplayName,
                 parentHeaderName,
                 showParentHeader,
                 isGroupedUnderParentHeader: !!parentHeaderName,
