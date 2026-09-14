@@ -128,8 +128,7 @@ export class DynamicForm {
 
     createControl(field) {
         const val = field.value ?? '';
-        const hasExcelDropdown = field.hasDropdown || field.hasSmallDropdown || field.hasLargeDropdown ||
-                                 (field.dropdownOptions && field.dropdownOptions.length > 0);
+        const hasExcelDropdown = Boolean(field.hasDropdown && field.dropdownOptions && field.dropdownOptions.length > 0);
 
         // 1. Trường có Validation ở file Excel: CHỈ CHO PHÉP CHỌN TRONG CÁC GIÁ TRỊ CÓ SẴN
         if (hasExcelDropdown) {

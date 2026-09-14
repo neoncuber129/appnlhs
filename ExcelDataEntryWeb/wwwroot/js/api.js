@@ -348,21 +348,9 @@ class ClientWorkbookEngine {
                 }
             }
             const suggestions = distinctVals.slice(0, 30);
-
-            // Handle multi-line header text (if header explicitly contains \n from multi-tier header)
             let parentHeaderName = '';
             let headerDisplayName = headerInfo.name;
             let showParentHeader = false;
-
-            if (headerInfo.name.includes('\n')) {
-                const parts = headerInfo.name.split('\n').map(p => p.trim()).filter(Boolean);
-                if (parts.length > 1) {
-                    parentHeaderName = parts[0];
-                    headerDisplayName = parts.slice(1).join('\n');
-                    showParentHeader = !shownParentHeaders.has(parentHeaderName);
-                    shownParentHeaders.add(parentHeaderName);
-                }
-            }
 
             // Check genuine Excel Data Validation for this cell
             const validationOptions = this.getDataValidationOptionsForCell(this.selectedSheet, r, c);
