@@ -128,104 +128,15 @@ export class DynamicForm {
 
     createControl(field) {
         const val = field.value ?? '';
-        const hasExcelDropdown = Boolean(field.hasDropdown && field.dropdownOptions && field.dropdownOptions.length > 0);
+        const dropdownOpts = (field.dropdownOptions && field.dropdownOptions.length > 0) ? field.dropdownOptions : [];
+        const hasExcelDropdown = field.hasDropdown && dropdownOpts.length > 0;
 
-        // 1. Trường có Validation ở file Excel: CHỈ CHO PHÉP CHỌN TRONG CÁC GIÁ TRỊ CÓ SẴN
+        // 1. CHỈ TRƯỜNG THỰC SỰ CÓ DROPDOWN VALIDATE TRONG EXCEL MỚI HIỂN THỊ GIAO DIỆN DROPDOWN/COMBOBOX
         if (hasExcelDropdown) {
-            const select = document.createElement('select');
-            select.className = 'win-input-ctrl win-select-ctrl';
-            if (field.hasRowHighlight && field.rowHighlightBorderHex && field.rowHighlightBorderHex !== 'Transparent') {
-                select.style.borderColor = field.rowHighlightBorderHex;
-            }
-
-            const defaultPrompt = field.sampleValue ? `-- Chọn (Mẫu: ${field.sampleValue}) --` : '-- Chọn giá trị --';
-            const emptyOpt = document.createElement('option');
-            emptyOpt.value = '';
-            emptyOpt.textContent = defaultPrompt;
-            select.appendChild(emptyOpt);
-
-            let matched = false;
-            const options = field.dropdownOptions || [];
-            options.forEach(opt => {
-                const optEl = document.createElement('option');
-                optEl.value = opt;
-                optEl.textContent = opt;
-                if (val && (opt.trim().toLowerCase() === val.trim().toLowerCase() || opt === val)) {
-                    optEl.selected = true;
-                    matched = true;
-                }
-                select.appendChild(optEl);
-            });
-
-            // Nếu giá trị cũ trong file không nằm trong danh sách validate (dữ liệu cũ sai)
-            if (val && !matched) {
-                const legacyOpt = document.createElement('option');
-                legacyOpt.value = val;
-                legacyOpt.textContent = `${val} (Hiện tại)`;
-                legacyOpt.selected = true;
-                select.appendChild(legacyOpt);
-            }
-
-            select.addEventListener('change', () => {
-                this.handleValueChange(field, select.value, true);
-            });
-
-            select.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.handleValueChange(field, select.value, true);
-                    this.focusNextField(select);
-                }
-            });
-
-            return select;
+            return this.createComboboxControl(field, dropdownOpts, val);
         }
 
-        // 2. Tính năng gợi ý theo cột (không phải validation): cho phép gõ tự do kèm danh sách gợi ý
-        if (field.suggestionOptions && field.suggestionOptions.length > 0) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'win-combobox-wrapper';
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'win-input-ctrl win-combobox-input';
-            input.value = val;
-            input.placeholder = field.sampleValue ? `Mẫu: ${field.sampleValue}` : '';
-
-            // Create unique datalist
-            const listId = `dl-${field.columnIndex}-${Math.random().toString(36).substring(2, 7)}`;
-            const datalist = document.createElement('datalist');
-            datalist.id = listId;
-
-            field.suggestionOptions.forEach(opt => {
-                const optEl = document.createElement('option');
-                optEl.value = opt;
-                datalist.appendChild(optEl);
-            });
-
-            input.setAttribute('list', listId);
-            wrapper.appendChild(input);
-            wrapper.appendChild(datalist);
-
-            // Button to trigger dropdown arrow / open list
-            const arrowBtn = document.createElement('button');
-            arrowBtn.type = 'button';
-            arrowBtn.className = 'combobox-arrow-btn';
-            arrowBtn.innerHTML = '▼';
-            arrowBtn.tabIndex = -1;
-            arrowBtn.addEventListener('click', () => {
-                input.focus();
-                if (input.value) {
-                    input.select();
-                }
-            });
-            wrapper.appendChild(arrowBtn);
-
-            this.attachInputEvents(input, field);
-            return wrapper;
-        }
-
-        // Multiline textarea
+        // 2. Multiline textarea
         if (field.isMultiLine) {
             const textarea = document.createElement('textarea');
             textarea.className = 'win-input-ctrl win-textarea';
@@ -236,7 +147,7 @@ export class DynamicForm {
             return textarea;
         }
 
-        // Regular input
+        // 3. Regular input
         const input = document.createElement('input');
         input.className = 'win-input-ctrl';
         input.value = val;
@@ -251,6 +162,173 @@ export class DynamicForm {
 
         this.attachInputEvents(input, field);
         return input;
+    }
+
+    createComboboxControl(field, options, val) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'win-combobox-wrapper';
+        if (field.hasRowHighlight && field.rowHighlightBorderHex && field.rowHighlightBorderHex !== 'Transparent') {
+            wrapper.style.borderColor = field.rowHighlightBorderHex;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'win-input-ctrl win-combobox-input';
+        input.value = val;
+        input.placeholder = field.sampleValue ? `Mẫu: ${field.sampleValue}` : 'Chọn hoặc nhập giá trị...';
+        input.autocomplete = 'off';
+
+        const arrowBtn = document.createElement('button');
+        arrowBtn.type = 'button';
+        arrowBtn.className = 'combobox-arrow-btn';
+        arrowBtn.innerHTML = '▼';
+        arrowBtn.title = 'Bấm để mở danh sách chọn';
+        arrowBtn.tabIndex = -1;
+
+        let popover = null;
+        let highlightedIndex = -1;
+
+        const closePopover = () => {
+            if (popover) {
+                popover.remove();
+                popover = null;
+                highlightedIndex = -1;
+            }
+        };
+
+        const renderPopoverItems = (filteredList) => {
+            if (!popover) return;
+            popover.innerHTML = '';
+
+            if (filteredList.length === 0) {
+                popover.innerHTML = '<div class="win-dropdown-empty">Không tìm thấy mục phù hợp</div>';
+                return;
+            }
+
+            filteredList.forEach((opt, idx) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'win-dropdown-option-item';
+                if (opt.trim().toLowerCase() === (input.value || '').trim().toLowerCase()) {
+                    itemEl.classList.add('selected');
+                }
+                if (idx === highlightedIndex) {
+                    itemEl.classList.add('highlighted');
+                }
+                itemEl.textContent = opt;
+
+                itemEl.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // Prevent input blur before click
+                });
+
+                itemEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    input.value = opt;
+                    this.handleValueChange(field, opt, true);
+                    closePopover();
+                    input.focus();
+                });
+
+                popover.appendChild(itemEl);
+            });
+        };
+
+        const openPopover = () => {
+            closePopover();
+            popover = document.createElement('div');
+            popover.className = 'win-dropdown-popover';
+
+            const q = (input.value || '').trim().toLowerCase();
+            const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+            renderPopoverItems(filtered.length > 0 ? filtered : options);
+
+            wrapper.appendChild(popover);
+        };
+
+        const togglePopover = (e) => {
+            if (e) e.stopPropagation();
+            if (popover) {
+                closePopover();
+            } else {
+                openPopover();
+                input.focus();
+            }
+        };
+
+        arrowBtn.addEventListener('click', togglePopover);
+
+        input.addEventListener('click', () => {
+            if (!popover) {
+                openPopover();
+            }
+        });
+
+        input.addEventListener('input', () => {
+            this.handleValueChange(field, input.value, false);
+            if (!popover) {
+                openPopover();
+            } else {
+                const q = input.value.trim().toLowerCase();
+                const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+                renderPopoverItems(filtered.length > 0 ? filtered : options);
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                if (!popover) {
+                    e.preventDefault();
+                    openPopover();
+                    return;
+                }
+                e.preventDefault();
+                const items = popover.querySelectorAll('.win-dropdown-option-item');
+                if (items.length > 0) {
+                    highlightedIndex = Math.min(highlightedIndex + 1, items.length - 1);
+                    items.forEach((it, i) => it.classList.toggle('highlighted', i === highlightedIndex));
+                    items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                if (popover) {
+                    e.preventDefault();
+                    const items = popover.querySelectorAll('.win-dropdown-option-item');
+                    if (items.length > 0) {
+                        highlightedIndex = Math.max(highlightedIndex - 1, 0);
+                        items.forEach((it, i) => it.classList.toggle('highlighted', i === highlightedIndex));
+                        items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+                    }
+                }
+            } else if (e.key === 'Enter') {
+                if (popover && highlightedIndex >= 0) {
+                    e.preventDefault();
+                    const items = popover.querySelectorAll('.win-dropdown-option-item');
+                    if (items[highlightedIndex]) {
+                        items[highlightedIndex].click();
+                        return;
+                    }
+                }
+                closePopover();
+                this.handleValueChange(field, input.value, true);
+                this.focusNextField(input);
+            } else if (e.key === 'Escape') {
+                if (popover) {
+                    e.preventDefault();
+                    closePopover();
+                }
+            } else if (e.key === 'Tab') {
+                closePopover();
+            }
+        });
+
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                closePopover();
+                this.handleValueChange(field, input.value, true);
+            }, 180);
+        });
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(arrowBtn);
+        return wrapper;
     }
 
     attachInputEvents(element, field) {

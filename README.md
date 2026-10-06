@@ -66,10 +66,10 @@ Trình duyệt tự động mở hoặc truy cập: **`http://localhost:5000`**
 ### 3. Chạy Bản Độc Lập Không Cần Cài .NET (Standalone Binaries)
 
 Tải gói phát hành trong mục [Releases / Actions Artifacts](https://github.com/neoncuber129/appnlhs/actions):
-- **Linux**: Giải nén và chạy `./start.sh` hoặc `./ExcelDataEntryWeb`.
+- **macOS (Apple Silicon M1/M2/M3/M4 & Intel)**: Nhấp đúp vào `start.command` hoặc `create_desktop_shortcut.command` (Chi tiết xem tại [DEPLOY_MACOS.md](DEPLOY_MACOS.md)).
+- **Linux**: Giải nén và chạy `./start.sh` hoặc `./create_desktop_shortcut.sh` (Chi tiết xem tại [DEPLOY_LINUX.md](DEPLOY_LINUX.md)).
 - **Windows**: Giải nén và chạy `ExcelDataEntryWeb.exe`.
-
-Chi tiết xem thêm tại [DEPLOY_LINUX.md](DEPLOY_LINUX.md).
+- **Bản Local Web HTML (Không cần cài đặt, mở trực tiếp trên Chrome/Edge)**: Vào thư mục [`publish/local-web`](publish/local-web), nhấp đúp mở trực tiếp [`index.html`](publish/local-web/index.html) hoặc file độc lập duy nhất [`ExcelDataEntry_Offline.html`](publish/local-web/ExcelDataEntry_Offline.html). Hoạt động 100% offline, hỗ trợ đọc/ghi trực tiếp vào file Excel trên máy qua File System Access API!
 
 ---
 

@@ -729,19 +729,18 @@ select.win-select-ctrl option {
 
 .win-textarea {
     resize: vertical;
-    min-height: 48px;
+    min-height: 52px;
 }
 
-/* Searchable Combobox Wrapper (Suggestions) */
+/* ─── INTERACTIVE COMBOBOX & DROPDOWN LIST POPOVER ──────────────────────── */
 .win-combobox-wrapper {
     position: relative;
-    width: 100%;
     display: flex;
     align-items: center;
 }
 
 .win-combobox-input {
-    padding-right: 28px;
+    padding-right: 32px;
 }
 
 .combobox-arrow-btn {
@@ -749,16 +748,82 @@ select.win-select-ctrl option {
     right: 4px;
     top: 50%;
     transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: var(--text-sub);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-main);
     cursor: pointer;
-    padding: 4px;
+    padding: 3px 6px;
     font-size: 10px;
     line-height: 1;
+    transition: background 0.15s ease, color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .combobox-arrow-btn:hover {
+    background: var(--accent-blue);
+    color: #ffffff;
+    border-color: var(--accent-blue);
+}
+
+/* Floating Dropdown List Popover */
+.win-dropdown-popover {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    min-width: 220px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-focus);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 1050;
+    padding: 4px 0;
+    animation: dropdownSlide 0.12s ease-out;
+}
+
+@keyframes dropdownSlide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.win-dropdown-option-item {
+    padding: 7px 12px;
+    font-size: var(--base-font-size);
     color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.1s ease, color 0.1s ease;
+    user-select: none;
+}
+
+.win-dropdown-option-item:hover,
+.win-dropdown-option-item.highlighted {
+    background: var(--accent-blue);
+    color: #ffffff;
+}
+
+.win-dropdown-option-item.selected {
+    background: rgba(56, 139, 253, 0.22);
+    color: var(--accent-blue-hover);
+    font-weight: 600;
+}
+
+.win-dropdown-option-item.selected:hover {
+    background: var(--accent-blue);
+    color: #ffffff;
+}
+
+.win-dropdown-empty {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
 }
 
 /* Save Status Indicator */

@@ -99,10 +99,24 @@ jobs:
           dotnet publish ExcelDataEntryWeb/ExcelDataEntryWeb.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
           cd publish/win-x64 && zip -r ../excel-data-entry-web-win-x64.zip . && cd ../..
 
+      - name: Publish macOS ARM64 (Apple Silicon)
+        run: |
+          dotnet publish ExcelDataEntryWeb/ExcelDataEntryWeb.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o publish/osx-arm64
+          cp publish/linux-x64/icon.png publish/osx-arm64/ 2>/dev/null || true
+          cd publish/osx-arm64 && tar -czf ../excel-data-entry-web-osx-arm64.tar.gz . && cd ../..
+
+      - name: Publish macOS x64 (Intel)
+        run: |
+          dotnet publish ExcelDataEntryWeb/ExcelDataEntryWeb.csproj -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -o publish/osx-x64
+          cp publish/linux-x64/icon.png publish/osx-x64/ 2>/dev/null || true
+          cd publish/osx-x64 && tar -czf ../excel-data-entry-web-osx-x64.tar.gz . && cd ../..
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: web-binaries
           path: |
+            publish/excel-data-entry-web-osx-arm64.tar.gz
+            publish/excel-data-entry-web-osx-x64.tar.gz
             publish/excel-data-entry-web-linux-x64.tar.gz
             publish/excel-data-entry-web-win-x64.zip

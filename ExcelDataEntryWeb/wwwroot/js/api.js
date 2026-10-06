@@ -6,6 +6,266 @@ const isClientOnlyMode = window.location.hostname.includes('github.io') ||
                          window.location.protocol === 'file:' || 
                          window.USE_CLIENT_ENGINE === true;
 
+// ─── DATA VALIDATION EXTRACTOR (Reads real Excel List Validations from .xlsx via CFB) ──
+function extractXmlFromCFB(cfb, targetPath) {
+    if (!window.XLSX || !cfb || !cfb.FileIndex) return '';
+    const normalizedTarget = targetPath.replace(/\\/g, '/').replace(/^\//, '').toLowerCase();
+    const targetBasename = normalizedTarget.split('/').pop();
+
+    for (const entry of cfb.FileIndex) {
+        if (!entry || !entry.name || !entry.content) continue;
+        const entryName = entry.name.replace(/\\/g, '/').replace(/^\//, '').toLowerCase();
+        if (entryName === normalizedTarget || entryName.endsWith('/' + normalizedTarget)) {
+            return typeof entry.content === 'string' ? entry.content : new TextDecoder('utf-8').decode(entry.content);
+        }
+    }
+
+    for (const entry of cfb.FileIndex) {
+        if (!entry || !entry.name || !entry.content) continue;
+        const entryName = entry.name.replace(/\\/g, '/').replace(/^\//, '').toLowerCase();
+        const entryBasename = entryName.split('/').pop();
+        if (entryBasename === targetBasename) {
+            return typeof entry.content === 'string' ? entry.content : new TextDecoder('utf-8').decode(entry.content);
+        }
+    }
+
+    return '';
+}
+
+function parseAllDataValidations(buffer, workbook) {
+    if (!buffer || !window.XLSX) return {};
+    let cfb;
+    try {
+        const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+        cfb = window.XLSX.CFB.read(uint8, { type: 'array' });
+    } catch (e) {
+        try {
+            cfb = window.XLSX.CFB.read(buffer, { type: 'buffer' });
+        } catch (_) {
+            return {};
+        }
+    }
+    if (!cfb) return {};
+
+    const relsXml = extractXmlFromCFB(cfb, 'xl/_rels/workbook.xml.rels') || extractXmlFromCFB(cfb, 'workbook.xml.rels');
+    const wbXml = extractXmlFromCFB(cfb, 'xl/workbook.xml') || extractXmlFromCFB(cfb, 'workbook.xml');
+
+    const rIdToTarget = {};
+    const relRegex = /<Relationship\s+([^>]*?)\/>/gi;
+    let rMatch;
+    while ((rMatch = relRegex.exec(relsXml)) !== null) {
+        const idMatch = rMatch[1].match(/Id="([^"]+)"/i);
+        const targetMatch = rMatch[1].match(/Target="([^"]+)"/i);
+        if (idMatch && targetMatch) {
+            let target = targetMatch[1].replace(/^\//, '');
+            if (!target.startsWith('xl/')) target = 'xl/' + target;
+            rIdToTarget[idMatch[1]] = target;
+        }
+    }
+
+    const sheetMap = {};
+    const sheetRegex = /<sheet\s+([^>]*?)(?:\/>|>.*?<\/sheet>|>)/gi;
+    let sMatch;
+    while ((sMatch = sheetRegex.exec(wbXml)) !== null) {
+        const nameMatch = sMatch[1].match(/name="([^"]+)"/i);
+        const rIdMatch = sMatch[1].match(/(?:r:)?id="([^"]+)"/i);
+        if (nameMatch && rIdMatch) {
+            const sheetName = nameMatch[1];
+            const target = rIdToTarget[rIdMatch[1]];
+            if (target) {
+                const xml = extractXmlFromCFB(cfb, target);
+                if (xml) sheetMap[sheetName] = xml;
+            }
+        }
+    }
+
+    // Fallback if sheetMap is empty
+    if (Object.keys(sheetMap).length === 0 && workbook && workbook.SheetNames) {
+        workbook.SheetNames.forEach((name, idx) => {
+            const xml = extractXmlFromCFB(cfb, `xl/worksheets/sheet${idx + 1}.xml`) || extractXmlFromCFB(cfb, `sheet${idx + 1}.xml`);
+            if (xml) sheetMap[name] = xml;
+        });
+    }
+
+    const validationsBySheet = {};
+
+    for (const [sheetName, sheetXml] of Object.entries(sheetMap)) {
+        const dvRules = [];
+
+        // Universal XML matcher for standard, x14, and namespaced DataValidations
+        const dvRegex = /<(?:[a-zA-Z0-9_-]+:)?dataValidation\s+([^>]*?)>(.*?)<\/(?:[a-zA-Z0-9_-]+:)?dataValidation>/gsi;
+        let match;
+        while ((match = dvRegex.exec(sheetXml)) !== null) {
+            const attrs = match[1];
+            const body = match[2];
+            const typeMatch = attrs.match(/type="([^"]+)"/i);
+            const sqrefMatch = attrs.match(/sqref="([^"]+)"/i) || body.match(/<(?:[a-zA-Z0-9_-]+:)?sqref>(.*?)<\/(?:[a-zA-Z0-9_-]+:)?sqref>/si);
+            const formulaMatch = body.match(/<(?:[a-zA-Z0-9_-]+:)?formula1>(.*?)<\/(?:[a-zA-Z0-9_-]+:)?formula1>/si);
+
+            const isList = !typeMatch || typeMatch[1].toLowerCase() === 'list';
+            if (isList && sqrefMatch && formulaMatch) {
+                const sqref = (sqrefMatch[1] || '').replace(/<[^>]+>/g, '').trim();
+                let formula = formulaMatch[1].replace(/<[^>]+>/g, '').trim();
+                const ranges = parseRange(sqref);
+                const options = resolveFormulaToValues(formula, workbook, sheetName);
+                if (options.length > 0) {
+                    dvRules.push({ sqref, formula, ranges, options });
+                }
+            }
+        }
+
+        validationsBySheet[sheetName] = dvRules;
+    }
+
+    return validationsBySheet;
+}
+
+function parseRange(sqref) {
+    if (!sqref || !window.XLSX) return [];
+    const tokens = sqref.split(/\s+/).filter(Boolean);
+    const result = [];
+
+    for (const token of tokens) {
+        try {
+            const cleanToken = token.replace(/\$/g, '');
+            if (cleanToken.includes(':')) {
+                const [start, end] = cleanToken.split(':');
+                const s = decodeCellOrCol(start, 0);
+                const e = decodeCellOrCol(end, 1048575);
+                if (s && e) result.push({ s, e });
+            } else if (/^[A-Za-z]+$/.test(cleanToken)) {
+                const c = window.XLSX.utils.decode_col(cleanToken);
+                result.push({ s: { c, r: 0 }, e: { c, r: 1048575 } });
+            } else {
+                const cell = window.XLSX.utils.decode_cell(cleanToken);
+                if (cell) result.push({ s: cell, e: cell });
+            }
+        } catch (_) {}
+    }
+    return result;
+}
+
+function decodeCellOrCol(str, defaultRow = 0) {
+    str = str.replace(/\$/g, '');
+    if (/^[A-Za-z]+$/.test(str)) {
+        const c = window.XLSX.utils.decode_col(str);
+        return { c, r: defaultRow };
+    }
+    return window.XLSX.utils.decode_cell(str);
+}
+
+function isCellInRanges(ranges, r, c) {
+    if (!ranges || ranges.length === 0) return false;
+    for (const range of ranges) {
+        if (r >= range.s.r && r <= range.e.r && c >= range.s.c && c <= range.e.c) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function isColumnInRanges(ranges, c) {
+    if (!ranges || ranges.length === 0) return false;
+    for (const range of ranges) {
+        if (c >= range.s.c && c <= range.e.c) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function resolveFormulaToValues(formula, workbook, currentSheetName) {
+    if (!formula) return [];
+    formula = formula.trim();
+
+    // Decode XML entities
+    formula = formula
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+
+    if (formula.startsWith('=')) formula = formula.substring(1).trim();
+
+    // 1. Quoted string list: "Nam,Nữ" or "Nam;Nữ"
+    if (formula.startsWith('"') && formula.endsWith('"')) {
+        const inner = formula.substring(1, formula.length - 1);
+        const sep = inner.includes(';') ? ';' : ',';
+        return inner.split(sep).map(s => s.trim()).filter(Boolean);
+    }
+
+    // 2. Unquoted comma/semicolon list: Nam,Nữ (no formulas or cell refs)
+    if (!formula.includes('!') && !formula.includes(':') && !formula.includes('(')) {
+        const sep = formula.includes(';') ? ';' : (formula.includes(',') ? ',' : null);
+        if (sep) {
+            return formula.split(sep).map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+        }
+    }
+
+    // 3. Named range in workbook.Workbook.Names
+    if (workbook && workbook.Workbook && workbook.Workbook.Names) {
+        const namedRange = workbook.Workbook.Names.find(n => n.Name && n.Name.toLowerCase() === formula.toLowerCase());
+        if (namedRange && namedRange.Ref) {
+            return resolveFormulaToValues(namedRange.Ref, workbook, currentSheetName);
+        }
+    }
+
+    // 4. Cell range: [Sheet!]A1:B10 or Sheet!$A$1:$A$10
+    let sheetName = currentSheetName;
+    let rangeRef = formula;
+
+    if (formula.includes('!')) {
+        const parts = formula.split('!');
+        sheetName = parts[0].replace(/^'|'$/g, '');
+        rangeRef = parts[1];
+    }
+
+    // Handle OFFSET / INDIRECT / complex formula: extract inner range or fallback
+    if (rangeRef.includes('(')) {
+        const innerMatch = rangeRef.match(/([A-Za-z0-9_]+!\$?[A-Za-z]+\$?\d+(?::\$?[A-Za-z]+\$?\d+)?)/);
+        if (innerMatch) {
+            return resolveFormulaToValues(innerMatch[1], workbook, currentSheetName);
+        }
+        const cellMatch = rangeRef.match(/(\$?[A-Za-z]+\$?\d+(?::\$?[A-Za-z]+\$?\d+)?)/);
+        if (cellMatch) {
+            rangeRef = cellMatch[1];
+        }
+    }
+
+    rangeRef = rangeRef.replace(/\$/g, '');
+
+    const targetSheet = workbook ? workbook.Sheets[sheetName] : null;
+    if (!targetSheet || !window.XLSX) return [];
+
+    try {
+        if (rangeRef.includes(':')) {
+            const range = window.XLSX.utils.decode_range(rangeRef);
+            const values = [];
+            for (let r = range.s.r; r <= range.e.r; r++) {
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                    const cell = targetSheet[window.XLSX.utils.encode_cell({ r, c })];
+                    if (cell && cell.v !== undefined) {
+                        const str = String(cell.v).trim();
+                        if (str && !values.includes(str)) {
+                            values.push(str);
+                        }
+                    }
+                }
+            }
+            return values;
+        } else {
+            const cell = targetSheet[rangeRef];
+            if (cell && cell.v !== undefined) {
+                const str = String(cell.v).trim();
+                return str ? [str] : [];
+            }
+        }
+    } catch (_) {}
+
+    return [];
+}
+
 // ─── PURE JAVASCRIPT IN-BROWSER WORKBOOK ENGINE ─────────────────────────────
 class ClientWorkbookEngine {
     constructor() {
@@ -23,16 +283,17 @@ class ClientWorkbookEngine {
         this.showAllHeaders = true;
         this.records = [];
         this.isLoaded = false;
+        this.validationsBySheet = {};
     }
 
     async openFromFile(file) {
         if (!file) throw new Error('Không có file để mở.');
         this.fileName = file.name || 'data.xlsx';
         const buffer = await file.arrayBuffer();
-        return this.openFromBuffer(buffer, this.fileName);
+        return await this.openFromBuffer(buffer, this.fileName);
     }
 
-    openFromBuffer(buffer, fileName = 'data.xlsx') {
+    async openFromBuffer(buffer, fileName = 'data.xlsx') {
         if (!window.XLSX) {
             throw new Error('Thư viện SheetJS (XLSX) chưa được tải.');
         }
@@ -42,6 +303,14 @@ class ClientWorkbookEngine {
         
         if (!this.workbook || !this.workbook.SheetNames || this.workbook.SheetNames.length === 0) {
             throw new Error('File Excel không có Sheet hợp lệ.');
+        }
+
+        try {
+            this.validationsBySheet = parseAllDataValidations(buffer, this.workbook);
+            console.log('[DataValidation] Extracted validations:', this.validationsBySheet);
+        } catch (e) {
+            console.warn('Lỗi đọc data validations:', e);
+            this.validationsBySheet = {};
         }
 
         this.selectedSheet = this.workbook.SheetNames[0];
@@ -95,15 +364,20 @@ class ClientWorkbookEngine {
     }
 
     selectSheet(cfg) {
-        if (!this.workbook || !this.workbook.Sheets[cfg.SheetName]) {
-            throw new Error(`Sheet '${cfg.SheetName}' không tồn tại.`);
+        const sheet = cfg.SheetName || cfg.sheetName;
+        if (!this.workbook || !this.workbook.Sheets[sheet]) {
+            throw new Error(`Sheet '${sheet}' không tồn tại.`);
         }
-        this.selectedSheet = cfg.SheetName;
-        if (cfg.HeaderRow) this.headerRow = cfg.HeaderRow;
-        if (cfg.NameColumn) this.nameColumn = cfg.NameColumn;
-        if (cfg.SampleRow) this.sampleRow = cfg.SampleRow;
+        this.selectedSheet = sheet;
+        if (cfg.HeaderRow || cfg.headerRow) this.headerRow = cfg.HeaderRow || cfg.headerRow;
+        if (cfg.NameColumn || cfg.nameColumn) this.nameColumn = cfg.NameColumn || cfg.nameColumn;
+        if (cfg.SampleRow || cfg.sampleRow) this.sampleRow = cfg.SampleRow || cfg.sampleRow;
         if (cfg.AutoSkipBlank !== undefined) this.autoSkipBlank = cfg.AutoSkipBlank;
+        else if (cfg.autoSkipBlank !== undefined) this.autoSkipBlank = cfg.autoSkipBlank;
         if (cfg.SuggestionsDisabled !== undefined) this.suggestionsDisabled = cfg.SuggestionsDisabled;
+        else if (cfg.suggestionsDisabled !== undefined) this.suggestionsDisabled = cfg.suggestionsDisabled;
+        if (cfg.AutoSave !== undefined) this.isAutoSave = cfg.AutoSave;
+        else if (cfg.autoSave !== undefined) this.isAutoSave = cfg.autoSave;
 
         this.parseCurrentSheet();
         return this.getWorkbookInfo();
@@ -115,7 +389,7 @@ class ClientWorkbookEngine {
         if (!ws || !ws['!ref']) return;
 
         const range = window.XLSX.utils.decode_range(ws['!ref']);
-        const startRow = this.sampleRow > 0 ? this.sampleRow : this.headerRow; // 0-indexed (starts strictly after sample row)
+        const startRow = this.sampleRow - 1; // 0-indexed
         let logicalIndex = 0;
 
         for (let r = startRow; r <= range.e.r; r++) {
@@ -162,20 +436,6 @@ class ClientWorkbookEngine {
         };
     }
 
-    getEffectiveCellText(ws, r, c) {
-        if (!ws) return '';
-        if (ws['!merges']) {
-            for (const m of ws['!merges']) {
-                if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) {
-                    const anchorCell = ws[window.XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c })];
-                    return anchorCell && anchorCell.v !== undefined ? String(anchorCell.w !== undefined ? anchorCell.w : anchorCell.v).trim() : '';
-                }
-            }
-        }
-        const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
-        return cell && cell.v !== undefined ? String(cell.w !== undefined ? cell.w : cell.v).trim() : '';
-    }
-
     getHeaders() {
         if (!this.workbook || !this.selectedSheet) return [];
         const ws = this.workbook.Sheets[this.selectedSheet];
@@ -187,8 +447,11 @@ class ClientWorkbookEngine {
 
         for (let c = range.s.c; c <= range.e.c; c++) {
             const colIdx = c + 1;
-            let name = this.getEffectiveCellText(ws, r, c);
-            if (this.autoSkipBlank && name.toLowerCase() === 'blank') continue;
+            const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
+            let name = cell && cell.v !== undefined ? String(cell.v).trim() : '';
+            if (this.autoSkipBlank && (!name || name.toLowerCase() === 'blank')) {
+                continue;
+            }
             if (!name) name = `Cột ${colIdx}`;
 
             const isVisible = !this.hiddenHeaders.has(colIdx);
@@ -225,82 +488,6 @@ class ClientWorkbookEngine {
         return this.records.filter(r => r.keyDisplay.toLowerCase().includes(q));
     }
 
-    getDataValidationOptionsForCell(sheetName, r, c) {
-        if (!this.workbook) return [];
-        const targetSheet = sheetName || this.selectedSheet;
-        const ws = this.workbook.Sheets[targetSheet];
-        if (!ws) return [];
-
-        const validations = ws['!dataValidation'] || ws['!dataValidations'] || [];
-        for (const val of validations) {
-            if (!val || !val.sqref) continue;
-            // Check if (r, c) is covered by sqref range string
-            const ranges = String(val.sqref).trim().split(/\s+/);
-            let inRange = false;
-            for (const rng of ranges) {
-                if (!rng) continue;
-                try {
-                    const dec = window.XLSX.utils.decode_range(rng);
-                    if (r >= dec.s.r && r <= dec.e.r && c >= dec.s.c && c <= dec.e.c) {
-                        inRange = true;
-                        break;
-                    }
-                } catch (_) {}
-            }
-
-            if (!inRange) continue;
-
-            // Only list validations produce dropdown options
-            if (val.type === 'list' || !val.type) {
-                let f1 = val.formula1 ? String(val.formula1).trim() : '';
-                if (!f1) continue;
-
-                // Strip quotes if formula1 is a quoted list like '"Nam,Nữ"' or '"1,2,3"'
-                if ((f1.startsWith('"') && f1.endsWith('"')) || (f1.startsWith("'") && f1.endsWith("'"))) {
-                    f1 = f1.substring(1, f1.length - 1);
-                    return f1.split(/[,;\t]/).map(s => s.trim()).filter(Boolean);
-                }
-
-                // If comma separated without quotes: "Nam,Nữ"
-                if (!f1.includes('!') && !f1.startsWith('=') && (f1.includes(',') || f1.includes(';'))) {
-                    return f1.split(/[,;\t]/).map(s => s.trim()).filter(Boolean);
-                }
-
-                // If formula reference e.g. =Sheet2!$A$1:$A$10 or Sheet2!A1:A10 or $A$1:$A$10
-                if (f1.startsWith('=')) f1 = f1.substring(1).trim();
-                let refSheet = targetSheet;
-                let rangeAddress = f1;
-                if (f1.includes('!')) {
-                    const parts = f1.split('!');
-                    refSheet = parts[0].replace(/^['"]|['"]$/g, '');
-                    rangeAddress = parts[1];
-                }
-
-                const refWs = this.workbook.Sheets[refSheet];
-                if (refWs) {
-                    try {
-                        const cleanRange = rangeAddress.replace(/\$/g, '');
-                        const dec = window.XLSX.utils.decode_range(cleanRange);
-                        const opts = [];
-                        for (let rowIdx = dec.s.r; rowIdx <= dec.e.r; rowIdx++) {
-                            for (let colIdx = dec.s.c; colIdx <= dec.e.c; colIdx++) {
-                                const targetCell = refWs[window.XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })];
-                                if (targetCell && targetCell.v !== undefined) {
-                                    const optText = String(targetCell.w !== undefined ? targetCell.w : targetCell.v).trim();
-                                    if (optText && !opts.includes(optText)) {
-                                        opts.push(optText);
-                                    }
-                                }
-                            }
-                        }
-                        if (opts.length > 0) return opts;
-                    } catch (_) {}
-                }
-            }
-        }
-        return [];
-    }
-
     getRecordFields(rowIndex) {
         if (!this.workbook || !this.selectedSheet) return [];
         const ws = this.workbook.Sheets[this.selectedSheet];
@@ -311,9 +498,10 @@ class ClientWorkbookEngine {
         const headerMap = new Map(headers.map(h => [h.columnIndex, h]));
         const fields = [];
         const r = rowIndex - 1;
+
+        // Parent header tracking (only if header explicitly contains '\n' from merged/multi-row headers)
         const shownParentHeaders = new Set();
 
-        // Build distinct suggestions per column
         for (let c = range.s.c; c <= range.e.c; c++) {
             const colIdx = c + 1;
             const headerInfo = headerMap.get(colIdx);
@@ -323,46 +511,69 @@ class ClientWorkbookEngine {
             const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
             const val = cell ? (cell.w !== undefined ? String(cell.w) : (cell.v !== undefined ? String(cell.v) : '')) : '';
 
-            const effectiveThreshold = this.sampleRow > 0 ? this.sampleRow : (this.headerRow + 1);
-            const sampleVal = this.getEffectiveCellText(ws, effectiveThreshold - 1, c);
-
-            // Exclude texts from row 1 up to sampleRowThreshold (header rows + sample row)
-            const excludedTexts = new Set();
-            for (let rIdx = 0; rIdx < effectiveThreshold; rIdx++) {
-                const t = this.getEffectiveCellText(ws, rIdx, c);
-                if (t) excludedTexts.add(t.trim().toLowerCase());
+            // Suggestions from other rows in this column (for autocomplete combobox, NOT forced dropdown validation)
+            let suggestions = [];
+            if (!this.suggestionsDisabled) {
+                const distinctVals = new Set();
+                for (let scanR = this.sampleRow - 1; scanR <= range.e.r; scanR++) {
+                    const scanCell = ws[window.XLSX.utils.encode_cell({ r: scanR, c })];
+                    if (scanCell && scanCell.v !== undefined) {
+                        const sVal = String(scanCell.v).trim();
+                        if (sVal && sVal.length < 100) distinctVals.add(sVal);
+                    }
+                }
+                suggestions = Array.from(distinctVals).slice(0, 30);
             }
 
-            // Suggestions from data rows strictly after sample row
-            const distinctVals = [];
-            const seen = new Set();
-            for (let scanR = effectiveThreshold; scanR <= range.e.r; scanR++) {
-                const sVal = this.getEffectiveCellText(ws, scanR, c);
-                if (sVal) {
-                    const norm = sVal.trim();
-                    const lower = norm.toLowerCase();
-                    if (!excludedTexts.has(lower) && !seen.has(lower) && norm.length < 100) {
-                        seen.add(lower);
-                        distinctVals.push(norm);
+            // Grouping: ONLY if header name contains '\n'
+            let headerDisplayName = headerInfo.name;
+            let parentHeaderName = '';
+            let showParentHeader = false;
+            let isGrouped = false;
+
+            if (headerInfo.name.includes('\n')) {
+                const parts = headerInfo.name.split('\n').map(p => p.trim()).filter(Boolean);
+                if (parts.length > 1) {
+                    parentHeaderName = parts[0];
+                    headerDisplayName = parts.slice(1).join(' - ');
+                    isGrouped = true;
+                    if (!shownParentHeaders.has(parentHeaderName)) {
+                        shownParentHeaders.add(parentHeaderName);
+                        showParentHeader = true;
                     }
                 }
             }
-            const suggestions = distinctVals.slice(0, 30);
-            let parentHeaderName = '';
-            let headerDisplayName = headerInfo.name;
-            let showParentHeader = false;
 
-            // Check genuine Excel Data Validation for this cell
-            const validationOptions = this.getDataValidationOptionsForCell(this.selectedSheet, r, c);
-            const hasValidation = validationOptions.length > 0;
-            const suggestionOptions = !hasValidation && !this.suggestionsDisabled ? suggestions : [];
+            // Check real Data Validation from Excel
+            const r0 = rowIndex - 1;
+            const c0 = colIdx - 1;
+            let excelDropdownOptions = [];
+            const sheetValidations = (this.validationsBySheet && this.validationsBySheet[this.selectedSheet]) || [];
+            
+            for (const rule of sheetValidations) {
+                if (isCellInRanges(rule.ranges, r0, c0)) {
+                    excelDropdownOptions = rule.options || [];
+                    if (excelDropdownOptions.length > 0) break;
+                }
+            }
+
+            if (excelDropdownOptions.length === 0) {
+                for (const rule of sheetValidations) {
+                    if (isColumnInRanges(rule.ranges, c0)) {
+                        excelDropdownOptions = rule.options || [];
+                        if (excelDropdownOptions.length > 0) break;
+                    }
+                }
+            }
+
+            const hasDropdown = excelDropdownOptions.length > 0;
 
             fields.push({
                 headerName: headerInfo.name,
-                headerDisplayName: headerDisplayName,
-                parentHeaderName,
-                showParentHeader,
-                isGroupedUnderParentHeader: !!parentHeaderName,
+                headerDisplayName: headerDisplayName || headerInfo.name,
+                parentHeaderName: parentHeaderName,
+                showParentHeader: showParentHeader,
+                isGroupedUnderParentHeader: isGrouped,
                 isFirstInHeaderGroup: false,
                 isLastInHeaderGroup: false,
                 groupBorderHex: 'Transparent',
@@ -374,16 +585,15 @@ class ClientWorkbookEngine {
                 sheetSeparatorTitle: '',
                 sourceRowIndex: rowIndex,
                 value: val,
-                sampleValue: sampleVal,
-                hasDropdown: hasValidation,
-                hasLargeDropdown: hasValidation && validationOptions.length > 10,
-                hasSmallDropdown: hasValidation && validationOptions.length <= 10,
-                showDropdownEditor: hasValidation,
+                hasDropdown: hasDropdown,
+                hasLargeDropdown: excelDropdownOptions.length > 10,
+                hasSmallDropdown: hasDropdown && excelDropdownOptions.length <= 10,
+                showDropdownEditor: hasDropdown,
                 isDependentDropdown: false,
                 parentDropdownColumns: [],
-                dropdownOptions: validationOptions,
-                suggestionOptions: suggestionOptions,
-                hasSuggestions: suggestionOptions.length > 0,
+                dropdownOptions: excelDropdownOptions,
+                suggestionOptions: suggestions,
+                hasSuggestions: !hasDropdown && suggestions.length > 0,
                 isDropdownValueInvalid: false,
                 dropdownValidationMessage: '',
                 rowHighlightBackgroundHex: 'Transparent',
@@ -395,6 +605,24 @@ class ClientWorkbookEngine {
             });
         }
         return fields;
+    }
+
+    getDropdownOptions(columnIndex, rowIndex = 0, sheetName = '') {
+        const targetSheet = sheetName || this.selectedSheet;
+        const sheetValidations = (this.validationsBySheet && this.validationsBySheet[targetSheet]) || [];
+        const r0 = (rowIndex > 0 ? rowIndex : this.sampleRow) - 1;
+        const c0 = columnIndex - 1;
+        for (const rule of sheetValidations) {
+            if (isCellInRanges(rule.ranges, r0, c0)) {
+                return rule.options || [];
+            }
+        }
+        for (const rule of sheetValidations) {
+            if (isColumnInRanges(rule.ranges, c0)) {
+                return rule.options || [];
+            }
+        }
+        return [];
     }
 
     updateCell(sheetName, rowIndex, columnIndex, value) {
